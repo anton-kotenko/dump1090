@@ -48,6 +48,7 @@
 //   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "dump1090.h"
+#include "rtlsdr_sink.h"
 #include "cpu.h"
 
 #include <stdarg.h>
@@ -888,6 +889,8 @@ int main(int argc, char **argv) {
 
         // Create the thread that will read the data from the device.
         pthread_create(&Modes.reader_thread, NULL, readerThreadEntryPoint, NULL);
+        rtl_sink * sink = init_rtl_sink("127.0.0.1", "1234", log_with_timestamp);
+        start_rtl_sink(sink);
 
         while (!Modes.exit) {
             // get the next sample buffer off the FIFO; wait only up to 100ms
@@ -925,10 +928,13 @@ int main(int argc, char **argv) {
             backgroundTasks();
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
         }
-
+        
         log_with_timestamp("Waiting for receive thread termination");
         sdrStop();   // tell reader thread to wake up and exit
         fifo_halt(); // Reader thread should do this anyway, but just in case..
+
+        stop_rtl_sink(sink);
+        free_rtl_sink(&sink);
 
         // Wait on reader thread exit
         if (join_thread(Modes.reader_thread, NULL, 30000) == ETIMEDOUT) {
